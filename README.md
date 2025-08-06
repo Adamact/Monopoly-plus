@@ -16,3 +16,6 @@ SMS - Lån
 Skattefusk
 - Skippar betalning av skatt
     - Risk för fängelse / förlängd tid vid ev fängelse
+
+Serverkommunikation:
+Visualisera olika gator och bolags värde över tid. 
