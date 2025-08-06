@@ -54,6 +54,8 @@ class Player():
     
     def __init__(self, name):
         self.name = name
+        self.balance = 1500
+        self.position = 0
 
 if __name__ == "__main__":
     app = MonopolyApp()
