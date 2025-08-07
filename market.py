@@ -8,8 +8,3 @@ class Stockmarket:
 
     def __init__(self, players):
         pass
-
-class Insurance_company:
-
-    def __init__(self, player):
-        pass

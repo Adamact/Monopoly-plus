@@ -58,5 +58,9 @@ settings = {
     },
     "market" : {
      "dividend" : 0.02   
+    },
+    "player" : {
+        "start_balance" : 1000 
     }
+
 }
