@@ -1,5 +1,6 @@
 import os
 import config
+import player_settings as settings
 
 clear = lambda: os.system('cls')
 
@@ -31,7 +32,6 @@ class MonopolyApp():
         pass
 
     def create_players(self):
-        print("")
         clear()
         inp = ""
         while True:
@@ -46,7 +46,21 @@ class MonopolyApp():
                     print(f"Unable to create player.")
 
     def start_game(self):
-        pass
+        clear()
+        game_mode = self.query_type()
+
+    def query_type(self):
+        while True:
+            print("Choose game type.")
+            print("(1) Addon - Additional tool to your physical boardgame.")
+            print("(2) Complete game - Everything is controlled by the program.")
+            inp = input("Input: ")
+
+            try:
+                int(inp)
+                return inp
+            except ValueError:
+                print("Invalid input.")
 
 
 
@@ -68,7 +82,7 @@ class Player():
     
     def __init__(self, name):
         self.name = name
-        self.balance = config.settings["player"]["start_balance"]
+        self.balance = settings.settings["player"]["start_balance"]
         self.streets = []
 
     def get_name(self):
