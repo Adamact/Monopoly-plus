@@ -8,13 +8,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from game_models import (
-    SECTOR_MULTIPLIERS,
-    Anvandare,
-    Bolag,
-    Spelstat,
-    Tillgang,
-)
+from game_models import SECTOR_MULTIPLIERS, Aktor, Bolag, Spelstat, Tillgang
 
 
 class MonopolyPlusGUI:
@@ -26,7 +20,7 @@ class MonopolyPlusGUI:
         self.root.configure(background="#f5f5f5")
 
         self.selected_company: Bolag | None = None
-        self.selected_player: Anvandare | None = None
+        self.selected_player: Aktor | None = None
 
         self._build_layout()
         self._refresh_player_list()
@@ -55,7 +49,7 @@ class MonopolyPlusGUI:
         add_frame = tk.Frame(frame, bg="#ffffff")
         add_frame.pack(fill=tk.X, pady=5)
 
-        tk.Label(add_frame, text="Namn", bg="#ffffff").grid(row=0, column=0, sticky="w")
+        tk.Label(add_frame, text="Aktör", bg="#ffffff").grid(row=0, column=0, sticky="w")
         self.player_name = tk.Entry(add_frame)
         self.player_name.grid(row=0, column=1, padx=5)
 
@@ -64,11 +58,11 @@ class MonopolyPlusGUI:
         self.player_balance.insert(0, "1000")
         self.player_balance.grid(row=1, column=1, padx=5)
 
-        tk.Button(add_frame, text="Lägg till spelare", command=self._handle_add_player).grid(
+        tk.Button(add_frame, text="Lägg till spelare/aktör", command=self._handle_add_player).grid(
             row=0, column=2, rowspan=2, padx=10
         )
 
-        self.player_list = tk.Listbox(frame, height=10)
+        self.player_list = tk.Listbox(frame, height=12)
         self.player_list.pack(fill=tk.BOTH, expand=True, pady=5)
         self.player_list.bind("<<ListboxSelect>>", self._on_player_select)
 
@@ -97,19 +91,19 @@ class MonopolyPlusGUI:
 
         company_frame = tk.Frame(frame, bg="#ffffff")
         company_frame.pack(fill=tk.X, pady=5)
-        tk.Label(company_frame, text="Nytt bolag", bg="#ffffff").grid(row=0, column=0, sticky="w")
+        tk.Label(company_frame, text="Ny aktör", bg="#ffffff").grid(row=0, column=0, sticky="w")
         self.new_company_name = tk.Entry(company_frame)
         self.new_company_name.grid(row=0, column=1, padx=5)
-        self.sector_var = tk.StringVar(value="Allmänt")
+        self.sector_var = tk.StringVar(value=list(SECTOR_MULTIPLIERS)[0])
         self.sector_select = ttk.Combobox(company_frame, textvariable=self.sector_var, values=list(SECTOR_MULTIPLIERS))
         self.sector_select.grid(row=0, column=2, padx=5)
-        tk.Button(company_frame, text="Skapa bolag", command=self._handle_create_company).grid(
+        tk.Button(company_frame, text="Skapa aktör", command=self._handle_create_company).grid(
             row=0, column=3, padx=5
         )
 
         summary_frame = tk.LabelFrame(frame, text="Detaljer", bg="#ffffff")
         summary_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        self.player_summary = tk.Text(summary_frame, height=8, wrap=tk.WORD)
+        self.player_summary = tk.Text(summary_frame, height=10, wrap=tk.WORD)
         self.player_summary.pack(fill=tk.BOTH, expand=True)
         self.player_summary.config(state="disabled")
 
@@ -117,14 +111,14 @@ class MonopolyPlusGUI:
         frame = tk.LabelFrame(parent, text="Bolag och värdering", padx=10, pady=10, bg="#ffffff")
         frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        columns = ("Ägare", "Värdering", "Sektor", "Intäkter", "Skulder")
+        columns = ("Störst ägare", "Värdering", "Sektor", "Intäkt/varv", "Skulder")
         self.company_tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
         for col in columns:
             self.company_tree.heading(col, text=col)
-        self.company_tree.column("Ägare", width=120)
+        self.company_tree.column("Störst ägare", width=120)
         self.company_tree.column("Värdering", width=110)
         self.company_tree.column("Sektor", width=90)
-        self.company_tree.column("Intäkter", width=90)
+        self.company_tree.column("Intäkt/varv", width=90)
         self.company_tree.column("Skulder", width=80)
         self.company_tree.pack(fill=tk.BOTH, expand=True)
         self.company_tree.bind("<<TreeviewSelect>>", self._on_company_select)
@@ -132,10 +126,10 @@ class MonopolyPlusGUI:
         update_frame = tk.LabelFrame(frame, text="Finansiella nycklar", bg="#ffffff")
         update_frame.pack(fill=tk.X, pady=5)
 
-        self.intakt_entry = self._labeled_entry(update_frame, "Årliga intäkter", 0)
+        self.intakt_entry = self._labeled_entry(update_frame, "Intäkt per varv", 0)
         self.kassa_entry = self._labeled_entry(update_frame, "Kassa", 1)
         self.skulder_entry = self._labeled_entry(update_frame, "Skulder", 2)
-        self.tillvaxt_entry = self._labeled_entry(update_frame, "Tillväxtförv. (0-0.25)", 3, default="0.03")
+        self.tillvaxt_entry = self._labeled_entry(update_frame, "Tillväxtförv. (0-0.25)", 3, default="0.02")
         self.risk_entry = self._labeled_entry(update_frame, "Riskpremie (0.02-0.4)", 4, default="0.08")
 
         tk.Button(update_frame, text="Uppdatera bolag", command=self._handle_update_company).grid(
@@ -146,7 +140,7 @@ class MonopolyPlusGUI:
         asset_frame.pack(fill=tk.X, pady=5)
         self.asset_name = self._labeled_entry(asset_frame, "Namn", 0)
         self.asset_value = self._labeled_entry(asset_frame, "Värdering", 1)
-        self.asset_cashflow = self._labeled_entry(asset_frame, "Årligt kassaflöde", 2, default="0")
+        self.asset_cashflow = self._labeled_entry(asset_frame, "Kassaflöde/varv", 2, default="0")
         tk.Button(asset_frame, text="Lägg till tillgång", command=self._handle_add_asset).grid(
             row=0, column=2, rowspan=3, padx=10
         )
@@ -213,7 +207,7 @@ class MonopolyPlusGUI:
             messagebox.showwarning("Fel", "Startsaldo måste vara en siffra")
             return
         try:
-            self.state.lagg_till_anvandare(namn, saldo)
+            self.state.lagg_till_aktor(namn, saldo, self.sector_var.get())
         except ValueError as exc:
             messagebox.showwarning("Fel", str(exc))
             return
@@ -223,8 +217,8 @@ class MonopolyPlusGUI:
 
     def _refresh_player_list(self) -> None:
         self.player_list.delete(0, tk.END)
-        for namn, anv in self.state.anvandare.items():
-            self.player_list.insert(tk.END, f"{namn} - {anv.saldo:.0f} kr")
+        for namn, anv in self.state.aktorer.items():
+            self.player_list.insert(tk.END, f"{namn} - {anv.saldo:.0f} kr ({anv.sektor})")
         self._update_trade_options()
 
     def _on_player_select(self, _event: tk.Event) -> None:
@@ -232,7 +226,7 @@ class MonopolyPlusGUI:
         if not selection:
             return
         namn = self.player_list.get(selection[0]).split(" - ")[0]
-        self.selected_player = self.state.hamta_anvandare(namn)
+        self.selected_player = self.state.hamta_aktor(namn)
         self._update_player_summary()
 
     def _handle_balance_change(self) -> None:
@@ -285,7 +279,7 @@ class MonopolyPlusGUI:
             return
         sektor = self.sector_var.get()
         try:
-            bolag = self.state.skapa_bolag(self.selected_player.namn, namn, sektor)
+            bolag = self.state.lagg_till_aktor(namn, None, sektor, agare_namn=self.selected_player.namn)
         except ValueError as exc:
             messagebox.showwarning("Fel", str(exc))
             return
@@ -299,7 +293,7 @@ class MonopolyPlusGUI:
     def _refresh_company_table(self) -> None:
         for item in self.company_tree.get_children():
             self.company_tree.delete(item)
-        for bolag in self.state.bolag.values():
+        for bolag in self.state.aktorer.values():
             agare = max(bolag.agare_andelar.items(), key=lambda item: item[1])[0]
             self.company_tree.insert(
                 "",
@@ -309,18 +303,18 @@ class MonopolyPlusGUI:
                     agare,
                     f"{bolag.vardera():.0f} kr",
                     bolag.sektor,
-                    f"{bolag.arliga_intakter:.0f}",
+                    f"{bolag.intakt_per_varv:.0f}",
                     f"{bolag.skulder:.0f}",
                 ),
             )
-        self.trade_company_select["values"] = list(self.state.bolag.keys())
+        self.trade_company_select["values"] = list(self.state.aktorer.keys())
 
     def _on_company_select(self, _event: tk.Event) -> None:
         selection = self.company_tree.selection()
         if not selection:
             return
         bolagsnamn = selection[0]
-        self.selected_company = self.state.hamta_bolag(bolagsnamn)
+        self.selected_company = self.state.hamta_aktor(bolagsnamn)
         self.trade_company_var.set(bolagsnamn)
         self._update_trade_options()
         self._update_company_summary()
@@ -340,7 +334,7 @@ class MonopolyPlusGUI:
             return
 
         self.selected_company.uppdatera_finansiellt(
-            kassa=kassa, intakter=intakter, skulder=skulder, tillvaxt=tillvaxt, riskpremie=risk
+            kassa=kassa, intakt_per_varv=intakter, skulder=skulder, tillvaxt=tillvaxt, riskpremie=risk
         )
         self._refresh_company_table()
         self._update_company_summary()
@@ -359,8 +353,9 @@ class MonopolyPlusGUI:
         except ValueError:
             messagebox.showwarning("Fel", "Ange numeriska värden för tillgången")
             return
-        tillgang = Tillgang(namn=namn, vardering=vardering, kassaflode=kassaflode)
-        self.selected_company.lagg_till_tillgang(tillgang)
+        self.selected_company.lagg_till_tillgang(
+            Tillgang(namn=namn, vardering=vardering, kassaflode_per_varv=kassaflode)
+        )
         self._update_company_summary()
         self._refresh_company_table()
 
@@ -373,7 +368,7 @@ class MonopolyPlusGUI:
         self.company_summary.config(state="disabled")
 
     def _update_trade_options(self) -> None:
-        self.buyer_select["values"] = list(self.state.anvandare.keys())
+        self.buyer_select["values"] = list(self.state.aktorer.keys())
         if self.selected_company:
             agare = list(self.selected_company.agare_andelar.keys())
         else:
@@ -402,8 +397,8 @@ class MonopolyPlusGUI:
         if not kopare_namn or not saljare_namn:
             messagebox.showwarning("Fel", "Välj både köpare och säljare")
             return
-        kopare = self.state.hamta_anvandare(kopare_namn)
-        saljare = self.state.hamta_anvandare(saljare_namn)
+        kopare = self.state.hamta_aktor(kopare_namn)
+        saljare = self.state.hamta_aktor(saljare_namn)
         try:
             pris = bolag.kop_in_som_agare(kopare, saljare, andel)
         except ValueError as exc:
@@ -422,7 +417,7 @@ class MonopolyPlusGUI:
         if not bolagsnamn:
             messagebox.showwarning("Fel", "Välj bolag")
             return None
-        bolag = self.state.hamta_bolag(bolagsnamn)
+        bolag = self.state.hamta_aktor(bolagsnamn)
         self.selected_company = bolag
         return bolag
 
