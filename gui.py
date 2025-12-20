@@ -21,13 +21,11 @@ class MonopolyPlusGUI:
         self.root.configure(background="#f5f5f5")
 
         self.selected_company: Bolag | None = None
-        self.selected_player: Aktor | None = None
         self.round_counter: int = 0
         self.active_actor: Aktor | None = None
         self.is_rolling: bool = False
 
         self._build_layout()
-        self._refresh_player_list()
         self._refresh_company_table()
         self._update_turn_display()
 
@@ -43,80 +41,26 @@ class MonopolyPlusGUI:
         content = tk.Frame(self.root, bg="#f5f5f5")
         content.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        self._build_player_panel(content)
         self._build_company_panel(content)
         self._build_trade_panel(content)
         self._build_dice_panel(content)
 
-    def _build_player_panel(self, parent: tk.Widget) -> None:
-        frame = tk.LabelFrame(parent, text="Spelare", padx=10, pady=10, bg="#ffffff")
+    def _build_company_panel(self, parent: tk.Widget) -> None:
+        frame = tk.LabelFrame(parent, text="Bolag och värdering", padx=10, pady=10, bg="#ffffff")
         frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         add_frame = tk.Frame(frame, bg="#ffffff")
         add_frame.pack(fill=tk.X, pady=5)
-
-        tk.Label(add_frame, text="Aktör", bg="#ffffff").grid(row=0, column=0, sticky="w")
-        self.player_name = tk.Entry(add_frame)
-        self.player_name.grid(row=0, column=1, padx=5)
-
+        tk.Label(add_frame, text="Bolag/Spelare", bg="#ffffff").grid(row=0, column=0, sticky="w")
+        self.new_company_name = tk.Entry(add_frame)
+        self.new_company_name.grid(row=0, column=1, padx=5)
         tk.Label(add_frame, text="Startsaldo", bg="#ffffff").grid(row=1, column=0, sticky="w")
         self.player_balance = tk.Entry(add_frame)
         self.player_balance.insert(0, "1000")
         self.player_balance.grid(row=1, column=1, padx=5)
-
-        tk.Button(add_frame, text="Lägg till spelare/aktör", command=self._handle_add_player).grid(
+        tk.Button(add_frame, text="Lägg till bolag", command=self._handle_create_company).grid(
             row=0, column=2, rowspan=2, padx=10
         )
-
-        self.player_list = tk.Listbox(frame, height=12)
-        self.player_list.pack(fill=tk.BOTH, expand=True, pady=5)
-        self.player_list.bind("<<ListboxSelect>>", self._on_player_select)
-
-        balance_frame = tk.Frame(frame, bg="#ffffff")
-        balance_frame.pack(fill=tk.X, pady=5)
-        tk.Label(balance_frame, text="Saldojustering", bg="#ffffff").grid(row=0, column=0, sticky="w")
-        self.balance_change = tk.Entry(balance_frame)
-        self.balance_change.insert(0, "0")
-        self.balance_change.grid(row=0, column=1, padx=5)
-        tk.Button(balance_frame, text="Uppdatera saldo", command=self._handle_balance_change).grid(
-            row=0, column=2, padx=5
-        )
-
-        asset_frame = tk.Frame(frame, bg="#ffffff")
-        asset_frame.pack(fill=tk.X, pady=5)
-        tk.Label(asset_frame, text="Tillgång", bg="#ffffff").grid(row=0, column=0, sticky="w")
-        self.player_asset_name = tk.Entry(asset_frame)
-        self.player_asset_name.grid(row=0, column=1, padx=5)
-        tk.Label(asset_frame, text="Värde", bg="#ffffff").grid(row=1, column=0, sticky="w")
-        self.player_asset_value = tk.Entry(asset_frame)
-        self.player_asset_value.insert(0, "0")
-        self.player_asset_value.grid(row=1, column=1, padx=5)
-        tk.Label(asset_frame, text="Sektor", bg="#ffffff").grid(row=2, column=0, sticky="w")
-        self.player_asset_sector = ttk.Combobox(asset_frame, values=list(SECTOR_MULTIPLIERS), state="readonly")
-        self.player_asset_sector.current(0)
-        self.player_asset_sector.grid(row=2, column=1, padx=5)
-        tk.Button(asset_frame, text="Lägg till ägd tillgång", command=self._handle_add_player_asset).grid(
-            row=0, column=2, rowspan=3, padx=10
-        )
-
-        company_frame = tk.Frame(frame, bg="#ffffff")
-        company_frame.pack(fill=tk.X, pady=5)
-        tk.Label(company_frame, text="Ny aktör", bg="#ffffff").grid(row=0, column=0, sticky="w")
-        self.new_company_name = tk.Entry(company_frame)
-        self.new_company_name.grid(row=0, column=1, padx=5)
-        tk.Button(company_frame, text="Skapa aktör", command=self._handle_create_company).grid(
-            row=0, column=3, padx=5
-        )
-
-        summary_frame = tk.LabelFrame(frame, text="Detaljer", bg="#ffffff")
-        summary_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        self.player_summary = tk.Text(summary_frame, height=10, wrap=tk.WORD)
-        self.player_summary.pack(fill=tk.BOTH, expand=True)
-        self.player_summary.config(state="disabled")
-
-    def _build_company_panel(self, parent: tk.Widget) -> None:
-        frame = tk.LabelFrame(parent, text="Bolag och värdering", padx=10, pady=10, bg="#ffffff")
-        frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         columns = ("Störst ägare", "Värdering", "Huvudsektor", "Intäkt/varv", "Skulder")
         self.company_tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
@@ -159,6 +103,16 @@ class MonopolyPlusGUI:
         self.company_summary = tk.Text(frame, height=10, wrap=tk.WORD)
         self.company_summary.pack(fill=tk.BOTH, expand=True, pady=5)
         self.company_summary.config(state="disabled")
+
+        balance_frame = tk.Frame(frame, bg="#ffffff")
+        balance_frame.pack(fill=tk.X, pady=5)
+        tk.Label(balance_frame, text="Saldojustering", bg="#ffffff").grid(row=0, column=0, sticky="w")
+        self.balance_change = tk.Entry(balance_frame)
+        self.balance_change.insert(0, "0")
+        self.balance_change.grid(row=0, column=1, padx=5)
+        tk.Button(balance_frame, text="Uppdatera saldo", command=self._handle_balance_change).grid(
+            row=0, column=2, padx=5
+        )
 
     def _build_trade_panel(self, parent: tk.Widget) -> None:
         frame = tk.LabelFrame(parent, text="Ägartransaktion", padx=10, pady=10, bg="#ffffff")
@@ -266,11 +220,24 @@ class MonopolyPlusGUI:
         entry.grid(row=row, column=1, padx=5, pady=2)
         return entry
 
-    def _handle_add_player(self) -> None:
-        namn = self.player_name.get().strip()
+    def _handle_balance_change(self) -> None:
+        if not self.selected_company:
+            messagebox.showwarning("Fel", "Välj ett bolag i listan")
+            return
+        try:
+            belopp = float(self.balance_change.get())
+        except ValueError:
+            messagebox.showwarning("Fel", "Ange ett numeriskt belopp")
+            return
+        self.selected_company.justera_saldo(belopp)
+        self._refresh_company_table()
+        self._update_company_summary()
+
+    def _handle_create_company(self) -> None:
+        namn = self.new_company_name.get().strip()
         saldo_text = self.player_balance.get().strip()
         if not namn:
-            messagebox.showwarning("Fel", "Ange ett namn på spelaren")
+            messagebox.showwarning("Fel", "Bolagsnamn saknas")
             return
         try:
             saldo = float(saldo_text)
@@ -278,81 +245,7 @@ class MonopolyPlusGUI:
             messagebox.showwarning("Fel", "Startsaldo måste vara en siffra")
             return
         try:
-            self.state.lagg_till_aktor(namn, saldo)
-        except ValueError as exc:
-            messagebox.showwarning("Fel", str(exc))
-            return
-
-        self.player_name.delete(0, tk.END)
-        self._refresh_player_list()
-
-    def _refresh_player_list(self) -> None:
-        self.player_list.delete(0, tk.END)
-        for namn, anv in self.state.aktorer.items():
-            sektor = self._dominant_sector(anv)
-            self.player_list.insert(tk.END, f"{namn} - {anv.saldo:.0f} kr ({sektor})")
-        self._update_trade_options()
-        self._update_turn_display()
-
-    def _on_player_select(self, _event: tk.Event) -> None:
-        selection = self.player_list.curselection()
-        if not selection:
-            return
-        namn = self.player_list.get(selection[0]).split(" - ")[0]
-        self.selected_player = self.state.hamta_aktor(namn)
-        self._update_player_summary()
-
-    def _handle_balance_change(self) -> None:
-        if not self.selected_player:
-            messagebox.showwarning("Fel", "Välj en spelare först")
-            return
-        try:
-            belopp = float(self.balance_change.get())
-        except ValueError:
-            messagebox.showwarning("Fel", "Ange ett numeriskt belopp")
-            return
-        self.selected_player.justera_saldo(belopp)
-        self._refresh_player_list()
-        self._update_player_summary()
-
-    def _handle_add_player_asset(self) -> None:
-        if not self.selected_player:
-            messagebox.showwarning("Fel", "Välj en spelare först")
-            return
-        namn = self.player_asset_name.get().strip()
-        if not namn:
-            messagebox.showwarning("Fel", "Namn på tillgång saknas")
-            return
-        try:
-            vardering = float(self.player_asset_value.get())
-        except ValueError:
-            messagebox.showwarning("Fel", "Värdering måste vara numerisk")
-            return
-        sektor = self.player_asset_sector.get() or list(SECTOR_MULTIPLIERS)[0]
-        self.selected_player.lagg_till_tillgang(namn, vardering, sektor=sektor)
-        self.player_asset_name.delete(0, tk.END)
-        self.player_asset_value.delete(0, tk.END)
-        self.player_asset_value.insert(0, "0")
-        self._update_player_summary()
-
-    def _update_player_summary(self) -> None:
-        if not self.selected_player:
-            return
-        self.player_summary.config(state="normal")
-        self.player_summary.delete("1.0", tk.END)
-        self.player_summary.insert(tk.END, self.selected_player.sammanfattning())
-        self.player_summary.config(state="disabled")
-
-    def _handle_create_company(self) -> None:
-        if not self.selected_player:
-            messagebox.showwarning("Fel", "Välj en spelare som ägare")
-            return
-        namn = self.new_company_name.get().strip()
-        if not namn:
-            messagebox.showwarning("Fel", "Bolagsnamn saknas")
-            return
-        try:
-            bolag = self.state.lagg_till_aktor(namn, None, agare_namn=self.selected_player.namn)
+            bolag = self.state.lagg_till_aktor(namn, saldo)
         except ValueError as exc:
             messagebox.showwarning("Fel", str(exc))
             return
@@ -360,6 +253,7 @@ class MonopolyPlusGUI:
         self.selected_company = bolag
         self.trade_company_var.set(bolag.namn)
         self._refresh_company_table()
+        self.company_tree.selection_set(bolag.namn)
         self._update_trade_options()
         self._update_company_summary()
 
@@ -382,6 +276,8 @@ class MonopolyPlusGUI:
                 ),
             )
         self.trade_company_select["values"] = list(self.state.aktorer.keys())
+        self._update_trade_options()
+        self._update_turn_display()
 
     def _on_company_select(self, _event: tk.Event) -> None:
         selection = self.company_tree.selection()
@@ -504,9 +400,7 @@ class MonopolyPlusGUI:
 
         messagebox.showinfo("Genomfört", f"Köpet genomfört för {pris:.0f} kr")
         self._refresh_company_table()
-        self._refresh_player_list()
         self._update_company_summary()
-        self._update_player_summary()
         self._update_trade_options()
 
     def _handle_money_transfer(self) -> None:
@@ -527,9 +421,8 @@ class MonopolyPlusGUI:
         except ValueError as exc:
             messagebox.showwarning("Fel", str(exc))
             return
-        self._refresh_player_list()
         self._refresh_company_table()
-        self._update_player_summary()
+        self._update_company_summary()
 
     def _populate_assets_for_seller(self) -> None:
         seller_name = self.asset_seller_var.get()
@@ -570,11 +463,10 @@ class MonopolyPlusGUI:
         except ValueError as exc:
             messagebox.showwarning("Fel", str(exc))
             return
-        self._refresh_player_list()
         self._refresh_company_table()
-        self._update_player_summary()
         self._update_company_summary()
         self._update_trade_options()
+        self._update_turn_display()
 
     def _start_dice_roll(self) -> None:
         if self.is_rolling:
@@ -607,10 +499,8 @@ class MonopolyPlusGUI:
     def _apply_turn_effects(self, actor: Aktor) -> None:
         kassaflode = actor.varvskassaflode()
         actor.justera_saldo(kassaflode)
-        self._refresh_player_list()
         self._refresh_company_table()
         self._update_company_summary()
-        self._update_player_summary()
         self._update_turn_display()
         messagebox.showinfo(
             "Varv klart",
