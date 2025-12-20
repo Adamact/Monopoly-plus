@@ -52,6 +52,7 @@ class Aktor:
         agare = agare_namn or namn
         self.agare_andelar: Dict[str, float] = {agare: 100.0}
         self.innehav: Dict[str, float] = {}
+        self.vardehistorik: List[float] = []
 
     def justera_saldo(self, belopp: float) -> None:
         self.saldo = round(self.saldo + belopp, 2)
@@ -69,10 +70,12 @@ class Aktor:
     def sammanfattning(self) -> str:
         asset_summary = ", ".join([f"{a.namn} ({a.vardering:.0f}, {a.sektor})" for a in self.tillgangar]) or "Inga"
         holdings = ", ".join([f"{namn}: {andel:.1f}%" for namn, andel in self.agare_andelar.items()])
+        externa_innehav = ", ".join([f"{namn}: {andel:.1f}%" for namn, andel in self.innehav.items()]) or "Inga"
         return (
             f"Saldo: {self.saldo:.0f} kr\n"
             f"Tillgångar: {asset_summary}\n"
-            f"Ägarandelar: {holdings}\n"
+            f"Ägarandelar (i detta bolag): {holdings}\n"
+            f"Innehav i andra bolag: {externa_innehav}\n"
             f"Beräknad värdering: {self.vardera():.0f} kr"
         )
 
@@ -163,6 +166,9 @@ class Aktor:
         self.justera_saldo(-belopp)
         mottagare.justera_saldo(belopp)
 
+    def registrera_varde(self) -> None:
+        self.vardehistorik.append(self.vardera())
+
     # --- Finansiella uppdateringar ---
     def uppdatera_finansiellt(
         self,
@@ -214,3 +220,14 @@ class Spelstat:
         aktor_namn = self.ordning[self.current_index]
         self.current_index = (self.current_index + 1) % len(self.ordning)
         return self.aktorer[aktor_namn]
+
+    def hamta_tillgang(self, namn: str) -> tuple[Aktor, Tillgang] | None:
+        for aktor in self.aktorer.values():
+            for t in aktor.tillgangar:
+                if t.namn == namn:
+                    return aktor, t
+        return None
+
+    def registrera_varden(self) -> None:
+        for aktor in self.aktorer.values():
+            aktor.registrera_varde()

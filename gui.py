@@ -62,14 +62,14 @@ class MonopolyPlusGUI:
             row=0, column=2, rowspan=2, padx=10
         )
 
-        columns = ("Störst ägare", "Värdering", "Huvudsektor", "Intäkt/varv", "Skulder")
+        columns = ("Störst ägare", "Värdering", "Huvudsektor", "Intäkt/år", "Skulder")
         self.company_tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
         for col in columns:
             self.company_tree.heading(col, text=col)
         self.company_tree.column("Störst ägare", width=120)
         self.company_tree.column("Värdering", width=110)
         self.company_tree.column("Huvudsektor", width=110)
-        self.company_tree.column("Intäkt/varv", width=90)
+        self.company_tree.column("Intäkt/år", width=90)
         self.company_tree.column("Skulder", width=80)
         self.company_tree.pack(fill=tk.BOTH, expand=True)
         self.company_tree.bind("<<TreeviewSelect>>", self._on_company_select)
@@ -77,7 +77,7 @@ class MonopolyPlusGUI:
         update_frame = tk.LabelFrame(frame, text="Finansiella nycklar", bg="#ffffff")
         update_frame.pack(fill=tk.X, pady=5)
 
-        self.intakt_entry = self._labeled_entry(update_frame, "Intäkt per varv", 0)
+        self.intakt_entry = self._labeled_entry(update_frame, "Intäkt per år", 0)
         self.kassa_entry = self._labeled_entry(update_frame, "Kassa", 1)
         self.skulder_entry = self._labeled_entry(update_frame, "Skulder", 2)
         self.tillvaxt_entry = self._labeled_entry(update_frame, "Tillväxtförv. (0-0.25)", 3, default="0.02")
@@ -95,7 +95,7 @@ class MonopolyPlusGUI:
         self.asset_sector = ttk.Combobox(asset_frame, values=list(SECTOR_MULTIPLIERS), state="readonly")
         self.asset_sector.current(0)
         self.asset_sector.grid(row=2, column=1, padx=5, pady=2)
-        self.asset_cashflow = self._labeled_entry(asset_frame, "Kassaflöde/varv", 3, default="0")
+        self.asset_cashflow = self._labeled_entry(asset_frame, "Kassaflöde/år", 3, default="0")
         tk.Button(asset_frame, text="Lägg till tillgång", command=self._handle_add_asset).grid(
             row=0, column=2, rowspan=4, padx=10
         )
@@ -192,13 +192,31 @@ class MonopolyPlusGUI:
 
         tk.Button(asset_trade, text="Genomför affär", command=self._handle_asset_sale).grid(row=0, column=2, rowspan=4, padx=10)
 
+        rent_frame = tk.LabelFrame(frame, text="Betala hyra", bg="#ffffff")
+        rent_frame.grid(row=9, column=0, columnspan=2, sticky="ew", pady=8)
+        tk.Label(rent_frame, text="Tillgång", bg="#ffffff").grid(row=0, column=0, sticky="w")
+        self.rent_asset_select = ttk.Combobox(rent_frame, values=[])
+        self.rent_asset_select.grid(row=0, column=1, padx=5)
+        self.rent_asset_select.bind("<<ComboboxSelected>>", lambda _: self._update_rent_owner())
+        tk.Label(rent_frame, text="Hyresgäst", bg="#ffffff").grid(row=1, column=0, sticky="w")
+        self.rent_payer_select = ttk.Combobox(rent_frame, values=[])
+        self.rent_payer_select.grid(row=1, column=1, padx=5)
+        tk.Label(rent_frame, text="Hyresvärd:", bg="#ffffff").grid(row=2, column=0, sticky="w")
+        self.rent_owner_label = tk.Label(rent_frame, text="-", bg="#ffffff")
+        self.rent_owner_label.grid(row=2, column=1, sticky="w")
+        tk.Label(rent_frame, text="Belopp", bg="#ffffff").grid(row=3, column=0, sticky="w")
+        self.rent_amount_entry = tk.Entry(rent_frame)
+        self.rent_amount_entry.insert(0, "0")
+        self.rent_amount_entry.grid(row=3, column=1, padx=5)
+        tk.Button(rent_frame, text="Betala hyra", command=self._handle_pay_rent).grid(row=0, column=2, rowspan=4, padx=10)
+
     def _build_dice_panel(self, parent: tk.Widget) -> None:
         frame = tk.LabelFrame(parent, text="Tärningsslag och rundor", padx=10, pady=10, bg="#ffffff")
         frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.turn_label = tk.Label(frame, text="Nästa aktör: -", bg="#ffffff", font=("Arial", 11, "bold"))
         self.turn_label.pack(anchor="w")
-        self.round_label = tk.Label(frame, text="Genomförda varv: 0", bg="#ffffff")
+        self.round_label = tk.Label(frame, text="Genomförda år: 0", bg="#ffffff")
         self.round_label.pack(anchor="w")
 
         dice_frame = tk.Frame(frame, bg="#ffffff")
@@ -211,7 +229,10 @@ class MonopolyPlusGUI:
         self.last_roll_label.pack()
 
         tk.Button(frame, text="Rulla tärningar", command=self._start_dice_roll).pack(pady=5)
-        tk.Label(frame, text="Varje slag räknar som ett varv för aktuell aktör och justerar saldo med kassaflöde/varv.", bg="#ffffff", wraplength=260).pack(pady=5)
+        tk.Label(frame, text="Varje slag räknar som ett år för aktuell aktör och justerar saldo med kassaflöde/år.", bg="#ffffff", wraplength=260).pack(pady=5)
+
+        self.history_canvas = tk.Canvas(frame, width=520, height=220, bg="#ffffff", highlightthickness=1, highlightbackground="#cccccc")
+        self.history_canvas.pack(fill=tk.BOTH, expand=True, pady=10)
 
     def _labeled_entry(self, parent: tk.Widget, text: str, row: int, default: str = "") -> tk.Entry:
         tk.Label(parent, text=text, bg="#ffffff").grid(row=row, column=0, sticky="w")
@@ -277,7 +298,9 @@ class MonopolyPlusGUI:
             )
         self.trade_company_select["values"] = list(self.state.aktorer.keys())
         self._update_trade_options()
+        self.state.registrera_varden()
         self._update_turn_display()
+        self._draw_valuation_history()
 
     def _on_company_select(self, _event: tk.Event) -> None:
         selection = self.company_tree.selection()
@@ -351,6 +374,8 @@ class MonopolyPlusGUI:
         self.asset_buyer_select["values"] = aktor_namn
         self.asset_seller_select["values"] = aktor_namn
         self._populate_assets_for_seller()
+        self.rent_payer_select["values"] = aktor_namn
+        self._update_rent_assets()
 
     def _dominant_sector(self, aktor: Aktor) -> str:
         if not aktor.tillgangar:
@@ -366,7 +391,23 @@ class MonopolyPlusGUI:
             return
         nasta = self.state.ordning[self.state.current_index]
         self.turn_label.config(text=f"Nästa aktör: {nasta}")
-        self.round_label.config(text=f"Genomförda varv: {self.round_counter}")
+        self.round_label.config(text=f"Genomförda år: {self.round_counter}")
+
+    def _update_rent_assets(self) -> None:
+        assets = self._all_assets()
+        self.rent_asset_select["values"] = assets
+        if assets:
+            self.rent_asset_select.current(0)
+            self._update_rent_owner()
+        else:
+            self.rent_owner_label.config(text="-")
+
+    def _all_assets(self) -> list[str]:
+        names: list[str] = []
+        for aktor in self.state.aktorer.values():
+            for t in aktor.tillgangar:
+                names.append(t.namn)
+        return names
 
     def _handle_calculate_price(self) -> None:
         bolag = self._get_trade_company()
@@ -436,6 +477,7 @@ class MonopolyPlusGUI:
             self.asset_select.current(0)
             self.asset_price_entry.delete(0, tk.END)
             self.asset_price_entry.insert(0, f"{seller.tillgangar[0].vardering:.0f}")
+        self._update_rent_assets()
 
     def _handle_asset_sale(self) -> None:
         seller_name = self.asset_seller_var.get()
@@ -467,6 +509,76 @@ class MonopolyPlusGUI:
         self._update_company_summary()
         self._update_trade_options()
         self._update_turn_display()
+
+    def _update_rent_owner(self) -> None:
+        asset_name = self.rent_asset_select.get()
+        data = self.state.hamta_tillgang(asset_name) if asset_name else None
+        if data:
+            owner, tillgang = data
+            self.rent_owner_label.config(text=owner.namn)
+            self.rent_amount_entry.delete(0, tk.END)
+            self.rent_amount_entry.insert(0, f"{tillgang.kassaflode_per_varv:.0f}")
+        else:
+            self.rent_owner_label.config(text="-")
+
+    def _handle_pay_rent(self) -> None:
+        asset_name = self.rent_asset_select.get()
+        payer_name = self.rent_payer_select.get()
+        if not asset_name or not payer_name:
+            messagebox.showwarning("Fel", "Välj tillgång och hyresgäst")
+            return
+        data = self.state.hamta_tillgang(asset_name)
+        if not data:
+            messagebox.showwarning("Fel", "Tillgången saknas")
+            return
+        owner, tillgang = data
+        if owner.namn == payer_name:
+            messagebox.showwarning("Fel", "Hyresgästen kan inte betala sig själv")
+            return
+        try:
+            belopp = float(self.rent_amount_entry.get())
+        except ValueError:
+            messagebox.showwarning("Fel", "Belopp måste vara numeriskt")
+            return
+        payer = self.state.hamta_aktor(payer_name)
+        try:
+            payer.overfor_pengar(owner, belopp)
+        except ValueError as exc:
+            messagebox.showwarning("Fel", str(exc))
+            return
+        messagebox.showinfo("Hyra betald", f"{payer.namn} betalade {belopp:.0f} kr i hyra till {owner.namn}")
+        self._refresh_company_table()
+        self._update_company_summary()
+        self._update_turn_display()
+
+    def _draw_valuation_history(self) -> None:
+        canvas = getattr(self, "history_canvas", None)
+        if not canvas:
+            return
+        canvas.delete("all")
+        actors = list(self.state.aktorer.values())
+        if not actors:
+            return
+        for aktor in actors:
+            if not aktor.vardehistorik:
+                aktor.registrera_varde()
+        max_len = max(len(a.vardehistorik) for a in actors)
+        max_val = max((max(a.vardehistorik) for a in actors if a.vardehistorik), default=1)
+        width = int(canvas["width"])
+        height = int(canvas["height"])
+        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+        for idx, aktor in enumerate(actors):
+            history = aktor.vardehistorik
+            if len(history) < 2 or max_val == 0:
+                continue
+            color = colors[idx % len(colors)]
+            for i in range(1, len(history)):
+                x1 = (i - 1) / (max_len - 1 if max_len > 1 else 1) * (width - 40) + 20
+                x2 = i / (max_len - 1 if max_len > 1 else 1) * (width - 40) + 20
+                y1 = height - (history[i - 1] / max_val) * (height - 40) - 20
+                y2 = height - (history[i] / max_val) * (height - 40) - 20
+                canvas.create_line(x1, y1, x2, y2, fill=color, width=2)
+            canvas.create_text(60, 20 + 15 * idx, text=f"{aktor.namn}", fill=color, anchor="w")
 
     def _start_dice_roll(self) -> None:
         if self.is_rolling:
@@ -503,8 +615,8 @@ class MonopolyPlusGUI:
         self._update_company_summary()
         self._update_turn_display()
         messagebox.showinfo(
-            "Varv klart",
-            f"{actor.namn} slog tärningarna.\nKassaflöde för varvet: {kassaflode:.0f} kr till saldot.",
+            "År klart",
+            f"{actor.namn} slog tärningarna.\nKassaflöde för året: {kassaflode:.0f} kr till saldot.",
         )
 
     def _get_trade_company(self) -> Bolag | None:
