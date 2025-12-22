@@ -1,233 +1,203 @@
-"""Domänmodeller för Monopoly Plus GUI.
+"""Domain models for Monopoly Plus GUI.
 
-En aktör representerar både spelare och företag. Ett “år” motsvarar
-att alla spelare gjort ett tärningsslag (ett varv), vilket används i
-värderingen av aktörens kassaflöde.
+A single turn through all players is considered one “year” for
+valuation and cash flow calculations.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from player_settings import settings
-
 
 ROUNDS_PER_YEAR = 1
 
 SECTOR_MULTIPLIERS: Dict[str, float] = {
-    "Fastighet": 1.08,
-    "Tåg": 0.95,
-    "Statligt": 1.0,
+    "Property": 1.08,
+    "Railroad": 0.95,
+    "Utility": 1.0,
 }
 
 SECTOR_MARGINS: Dict[str, float] = {
-    "Fastighet": 0.3,
-    "Tåg": 0.22,
-    "Statligt": 0.18,
+    "Property": 0.3,
+    "Railroad": 0.22,
+    "Utility": 0.18,
 }
 
 
 @dataclass
-class Tillgang:
-    """Enskild tillgång som påverkar en aktörs substansvärde."""
-
-    namn: str
-    vardering: float
-    sektor: str = "Fastighet"
-    kassaflode_per_varv: float = 0.0
+class Asset:
+    name: str
+    value: float
+    sector: str = "Property"
+    cash_flow_per_year: float = 0.0
 
 
-class Aktor:
-    """Representerar spelare och företag (samma typ av aktör)."""
+class Actor:
+    """Represents a player/company actor in the game."""
 
-    def __init__(self, namn: str, saldo: float | None = None, agare_namn: Optional[str] = None):
-        self.namn = namn
-        self.saldo = saldo if saldo is not None else settings["player"]["start_balance"]
-        self.kassa: float = 0.0
-        self.intakt_per_varv: float = 0.0
-        self.tillvaxtforvantning: float = 0.02
-        self.riskpremie: float = 0.08
-        self.skulder: float = 0.0
-        self.tillgangar: List[Tillgang] = []
-        agare = agare_namn or namn
-        self.agare_andelar: Dict[str, float] = {agare: 100.0}
-        self.innehav: Dict[str, float] = {}
-        self.vardehistorik: List[float] = []
+    def __init__(self, name: str, balance: float | None = None, owner_name: Optional[str] = None):
+        self.name = name
+        self.balance = balance if balance is not None else settings["player"]["start_balance"]
+        self.growth_expectation: float = 0.02
+        self.risk_premium: float = 0.08
+        self.debt: float = 0.0
+        self.assets: List[Asset] = []
+        main_owner = owner_name or name
+        self.ownership_shares: Dict[str, float] = {main_owner: 100.0}
+        self.holdings: Dict[str, float] = {}
+        self.valuation_history: List[float] = []
 
-    def justera_saldo(self, belopp: float) -> None:
-        self.saldo = round(self.saldo + belopp, 2)
+    # --- Money / holdings helpers ---
+    def adjust_balance(self, amount: float) -> None:
+        self.balance = round(self.balance + amount, 2)
 
-    def lagg_till_tillgang(self, namn: str, vardering: float, sektor: str, kassaflode_per_varv: float = 0.0) -> Tillgang:
-        tillgang = Tillgang(
-            namn=namn,
-            vardering=vardering,
-            sektor=sektor if sektor in SECTOR_MULTIPLIERS else "Fastighet",
-            kassaflode_per_varv=kassaflode_per_varv,
+    def add_asset(self, name: str, value: float, sector: str, cash_flow_per_year: float = 0.0) -> Asset:
+        asset = Asset(
+            name=name,
+            value=value,
+            sector=sector if sector in SECTOR_MULTIPLIERS else "Property",
+            cash_flow_per_year=cash_flow_per_year,
         )
-        self.tillgangar.append(tillgang)
-        return tillgang
+        self.assets.append(asset)
+        return asset
 
-    def sammanfattning(self) -> str:
-        asset_summary = ", ".join([f"{a.namn} ({a.vardering:.0f}, {a.sektor})" for a in self.tillgangar]) or "Inga"
-        holdings = ", ".join([f"{namn}: {andel:.1f}%" for namn, andel in self.agare_andelar.items()])
-        externa_innehav = ", ".join([f"{namn}: {andel:.1f}%" for namn, andel in self.innehav.items()]) or "Inga"
-        return (
-            f"Saldo: {self.saldo:.0f} kr\n"
-            f"Tillgångar: {asset_summary}\n"
-            f"Ägarandelar (i detta bolag): {holdings}\n"
-            f"Innehav i andra bolag: {externa_innehav}\n"
-            f"Beräknad värdering: {self.vardera():.0f} kr"
-        )
+    # --- Derived metrics ---
+    def total_asset_value(self) -> float:
+        direct_value = sum(a.value * SECTOR_MULTIPLIERS.get(a.sector, 1.0) for a in self.assets)
+        discounted_flow = sum(a.cash_flow_per_year for a in self.assets) * 4
+        return direct_value + discounted_flow
 
-    # --- Värdering ---
-    def tillgangsvarde(self) -> float:
-        direkt_varde = sum(t.vardering * SECTOR_MULTIPLIERS.get(t.sektor, 1.0) for t in self.tillgangar)
-        diskonterat_flode = sum(t.kassaflode_per_varv for t in self.tillgangar) * ROUNDS_PER_YEAR * 4
-        return direkt_varde + diskonterat_flode
+    def cash_flow_multiple(self) -> float:
+        base = 3 + (self.growth_expectation * 18)
+        risk_adjustment = max(0.55, 1 - self.risk_premium)
+        return max(2.0, base * risk_adjustment)
 
-    def kassaflodesmultipel(self) -> float:
-        bas = 3 + (self.tillvaxtforvantning * 18)
-        riskjustering = max(0.55, 1 - self.riskpremie)
-        return max(2.0, bas * riskjustering)
+    def cash_flow_per_year(self) -> float:
+        return sum(a.cash_flow_per_year for a in self.assets)
 
-    def varvskassaflode(self) -> float:
-        return self.intakt_per_varv + sum(t.kassaflode_per_varv for t in self.tillgangar)
-
-    def driftresultat_per_ar(self) -> float:
-        total_flode = self.varvskassaflode()
-        if total_flode == 0:
-            marginal = 0
+    def operating_result_per_year(self) -> float:
+        total_flow = self.cash_flow_per_year()
+        if total_flow == 0:
+            margin = SECTOR_MARGINS["Property"]
         else:
-            viktade_marginaler = sum(
-                (t.kassaflode_per_varv / total_flode) * SECTOR_MARGINS.get(t.sektor, SECTOR_MARGINS["Fastighet"])
-                for t in self.tillgangar
+            weighted_margins = sum(
+                (a.cash_flow_per_year / total_flow) * SECTOR_MARGINS.get(a.sector, SECTOR_MARGINS["Property"])
+                for a in self.assets
             )
-            marginal = viktade_marginaler
-        return (total_flode * ROUNDS_PER_YEAR) * (marginal if marginal > 0 else SECTOR_MARGINS["Fastighet"])
+            margin = weighted_margins
+        return total_flow * margin
 
-    def vardera(self) -> float:
-        substans = self.tillgangsvarde() + self.kassa
-        kassaflode = self.driftresultat_per_ar() * self.kassaflodesmultipel()
-        skuldrisk = self.skulder * 1.05
-        sentiment = (
-            sum(SECTOR_MULTIPLIERS.get(t.sektor, 1.0) for t in self.tillgangar) / len(self.tillgangar)
-            if self.tillgangar
-            else 1.0
+    def valuation(self) -> float:
+        substance = self.total_asset_value()
+        cash_flow = self.operating_result_per_year() * self.cash_flow_multiple()
+        debt_risk = self.debt * 1.05
+        sentiment = sum(SECTOR_MULTIPLIERS.get(a.sector, 1.0) for a in self.assets) / len(self.assets) if self.assets else 1.0
+        return max(round((substance + cash_flow) * sentiment - debt_risk, 2), 0.0)
+
+    def summary(self) -> str:
+        assets = ", ".join([f"{a.name} ({a.value:.0f}, {a.sector})" for a in self.assets]) or "None"
+        ownership = ", ".join([f"{name}: {share:.1f}%" for name, share in self.ownership_shares.items()])
+        external = ", ".join([f"{name}: {share:.1f}%" for name, share in self.holdings.items()]) or "None"
+        return (
+            f"Balance: {self.balance:.0f} kr\n"
+            f"Assets: {assets}\n"
+            f"Ownership (this company): {ownership}\n"
+            f"Holdings in others: {external}\n"
+            f"Valuation: {self.valuation():.0f} kr\n"
+            f"Annual cash flow: {self.cash_flow_per_year():.0f} kr"
         )
-        return max(round((substans + kassaflode) * sentiment - skuldrisk, 2), 0.0)
 
-    # --- Ägarhantering ---
-    def andel_for(self, namn: str) -> float:
-        return self.agare_andelar.get(namn, 0.0)
+    # --- Ownership handling ---
+    def share_for(self, name: str) -> float:
+        return self.ownership_shares.get(name, 0.0)
 
-    def kop_in_som_agare(self, kopare: Aktor, saljare: Aktor, andel: float) -> float:
-        if andel <= 0:
-            raise ValueError("Andelen måste vara positiv")
-        if self.andel_for(saljare.namn) < andel:
-            raise ValueError("Säljaren saknar angiven andel")
-        pris = self.vardera() * (andel / 100)
-        if kopare.saldo < pris:
-            raise ValueError("Köparen har inte råd med köpet")
+    def buy_in_as_owner(self, buyer: "Actor", seller: "Actor", share: float) -> float:
+        if share <= 0:
+            raise ValueError("Share must be positive")
+        if self.share_for(seller.name) < share:
+            raise ValueError("Seller lacks that share")
+        price = self.valuation() * (share / 100)
+        if buyer.balance < price:
+            raise ValueError("Buyer cannot afford the purchase")
 
-        self.agare_andelar[saljare.namn] -= andel
-        if self.agare_andelar[saljare.namn] <= 0:
-            del self.agare_andelar[saljare.namn]
+        self.ownership_shares[seller.name] -= share
+        if self.ownership_shares[seller.name] <= 0:
+            del self.ownership_shares[seller.name]
 
-        self.agare_andelar[kopare.namn] = self.agare_andelar.get(kopare.namn, 0) + andel
+        self.ownership_shares[buyer.name] = self.ownership_shares.get(buyer.name, 0) + share
 
-        saljare.justera_saldo(pris)
-        kopare.justera_saldo(-pris)
+        seller.adjust_balance(price)
+        buyer.adjust_balance(-price)
 
-        kopare.innehav[self.namn] = self.agare_andelar[kopare.namn]
-        saljare.innehav[self.namn] = self.agare_andelar.get(saljare.namn, 0)
-        if saljare.innehav[self.namn] == 0:
-            del saljare.innehav[self.namn]
+        buyer.holdings[self.name] = self.ownership_shares[buyer.name]
+        seller.holdings[self.name] = self.ownership_shares.get(seller.name, 0)
+        if seller.holdings[self.name] == 0:
+            del seller.holdings[self.name]
 
-        return round(pris, 2)
+        return round(price, 2)
 
-    def flytta_tillgang(self, kopare: Aktor, tillgang: Tillgang, pris: Optional[float] = None) -> float:
-        if tillgang not in self.tillgangar:
-            raise ValueError("Tillgången ägs inte av säljaren")
-        kostnad = pris if pris is not None else tillgang.vardering
-        if kopare.saldo < kostnad:
-            raise ValueError("Köparen har inte råd med köpet")
+    def transfer_asset(self, buyer: "Actor", asset: Asset, price: Optional[float] = None) -> float:
+        if asset not in self.assets:
+            raise ValueError("Seller does not own the asset")
+        cost = price if price is not None else asset.value
+        if buyer.balance < cost:
+            raise ValueError("Buyer cannot afford the asset")
 
-        self.tillgangar.remove(tillgang)
-        kopare.tillgangar.append(tillgang)
-        kopare.justera_saldo(-kostnad)
-        self.justera_saldo(kostnad)
-        return round(kostnad, 2)
+        self.assets.remove(asset)
+        buyer.assets.append(asset)
+        buyer.adjust_balance(-cost)
+        self.adjust_balance(cost)
+        return round(cost, 2)
 
-    def overfor_pengar(self, mottagare: Aktor, belopp: float) -> None:
-        if belopp <= 0:
-            raise ValueError("Beloppet måste vara positivt")
-        if self.saldo < belopp:
-            raise ValueError("Otillräckligt saldo")
-        self.justera_saldo(-belopp)
-        mottagare.justera_saldo(belopp)
+    def transfer_money(self, recipient: "Actor", amount: float) -> None:
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+        if self.balance < amount:
+            raise ValueError("Insufficient funds")
+        self.adjust_balance(-amount)
+        recipient.adjust_balance(amount)
 
-    def registrera_varde(self) -> None:
-        self.vardehistorik.append(self.vardera())
-
-    # --- Finansiella uppdateringar ---
-    def uppdatera_finansiellt(
-        self,
-        *,
-        kassa: float | None = None,
-        intakt_per_varv: float | None = None,
-        skulder: float | None = None,
-        tillvaxt: float | None = None,
-        riskpremie: float | None = None,
-    ) -> None:
-        if kassa is not None:
-            self.kassa = round(max(kassa, 0), 2)
-        if intakt_per_varv is not None:
-            self.intakt_per_varv = max(intakt_per_varv, 0)
-        if skulder is not None:
-            self.skulder = max(skulder, 0)
-        if tillvaxt is not None:
-            self.tillvaxtforvantning = max(min(tillvaxt, 0.25), -0.05)
-        if riskpremie is not None:
-            self.riskpremie = max(min(riskpremie, 0.4), 0.02)
+    def record_valuation(self) -> None:
+        self.valuation_history.append(self.valuation())
 
 
-# Typalias för bakåtkompatibilitet i GUI:t
-Bolag = Aktor
+Company = Actor
 
 
-class Spelstat:
-    """Samlar aktörer för GUI:t."""
+class GameState:
+    """Container for actors and order."""
 
     def __init__(self):
-        self.aktorer: Dict[str, Aktor] = {}
-        self.ordning: List[str] = []
+        self.actors: Dict[str, Actor] = {}
+        self.order: List[str] = []
         self.current_index: int = 0
 
-    def lagg_till_aktor(self, namn: str, saldo: float | None = None, sektor: str = "Fastighet", agare_namn: str | None = None) -> Aktor:
-        if namn in self.aktorer:
-            raise ValueError("Aktör finns redan")
-        aktor = Aktor(namn, saldo, agare_namn)
-        self.aktorer[namn] = aktor
-        self.ordning.append(namn)
-        return aktor
+    def add_actor(self, name: str, balance: float | None = None, sector: str = "Property", owner_name: str | None = None) -> Actor:
+        if name in self.actors:
+            raise ValueError("Actor already exists")
+        actor = Actor(name, balance, owner_name)
+        self.actors[name] = actor
+        self.order.append(name)
+        return actor
 
-    def hamta_aktor(self, namn: str) -> Aktor:
-        return self.aktorer[namn]
+    def get_actor(self, name: str) -> Actor:
+        return self.actors[name]
 
-    def nasta_aktor(self) -> Aktor:
-        if not self.ordning:
-            raise ValueError("Inga aktörer tillagda")
-        aktor_namn = self.ordning[self.current_index]
-        self.current_index = (self.current_index + 1) % len(self.ordning)
-        return self.aktorer[aktor_namn]
+    def next_actor(self) -> Actor:
+        if not self.order:
+            raise ValueError("No actors added")
+        actor_name = self.order[self.current_index]
+        self.current_index = (self.current_index + 1) % len(self.order)
+        return self.actors[actor_name]
 
-    def hamta_tillgang(self, namn: str) -> tuple[Aktor, Tillgang] | None:
-        for aktor in self.aktorer.values():
-            for t in aktor.tillgangar:
-                if t.namn == namn:
-                    return aktor, t
+    def find_asset(self, name: str) -> Optional[Tuple[Actor, Asset]]:
+        for actor in self.actors.values():
+            for asset in actor.assets:
+                if asset.name == name:
+                    return actor, asset
         return None
 
-    def registrera_varden(self) -> None:
-        for aktor in self.aktorer.values():
-            aktor.registrera_varde()
+    def record_all_valuations(self) -> None:
+        for actor in self.actors.values():
+            actor.record_valuation()
