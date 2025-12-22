@@ -241,6 +241,24 @@ class MonopolyPlusGUI:
         entry.grid(row=row, column=1, padx=5, pady=2)
         return entry
 
+    def _bind_enter(self, widget: tk.Widget, command) -> None:
+        widget.bind("<Return>", lambda _event: command())
+
+    def _save_state(self) -> None:
+        self.undo_stack.append(copy.deepcopy(self.state))
+        if len(self.undo_stack) > 20:
+            self.undo_stack.pop(0)
+
+    def _handle_undo(self) -> None:
+        if not self.undo_stack:
+            return
+        self.state = self.undo_stack.pop()
+        self.selected_company = None
+        self._refresh_company_table()
+        self._update_trade_options()
+        self._update_company_summary()
+        self._update_turn_display()
+
     # --- Actions ---
     def _handle_balance_change(self) -> None:
         if not self.selected_company:
@@ -267,6 +285,7 @@ class MonopolyPlusGUI:
             messagebox.showwarning("Error", "Starting balance must be a number")
             return
         try:
+            self._save_state()
             company = self.state.add_actor(name, balance)
         except ValueError as exc:
             messagebox.showwarning("Error", str(exc))
@@ -332,6 +351,7 @@ class MonopolyPlusGUI:
             messagebox.showwarning("Error", "Enter numeric values for asset")
             return
         sector = self.asset_sector.get() or list(SECTOR_MULTIPLIERS)[0]
+        self._save_state()
         self.selected_company.add_asset(name=name, value=value, sector=sector, cash_flow_per_year=cashflow)
         self._update_company_summary()
         self._refresh_company_table()
@@ -419,6 +439,7 @@ class MonopolyPlusGUI:
         buyer = self.state.get_actor(buyer_name)
         seller = self.state.get_actor(seller_name)
         try:
+            self._save_state()
             price = company.buy_in_as_owner(buyer, seller, share)
         except ValueError as exc:
             messagebox.showwarning("Error", str(exc))
@@ -444,6 +465,7 @@ class MonopolyPlusGUI:
         sender = self.state.get_actor(from_name)
         receiver = self.state.get_actor(to_name)
         try:
+            self._save_state()
             sender.transfer_money(receiver, amount)
         except ValueError as exc:
             messagebox.showwarning("Error", str(exc))
@@ -487,6 +509,7 @@ class MonopolyPlusGUI:
             messagebox.showwarning("Error", "Price must be numeric")
             return
         try:
+            self._save_state()
             seller.transfer_asset(buyer, asset, price)
         except ValueError as exc:
             messagebox.showwarning("Error", str(exc))
@@ -528,6 +551,7 @@ class MonopolyPlusGUI:
             return
         tenant = self.state.get_actor(tenant_name)
         try:
+            self._save_state()
             tenant.transfer_money(owner, amount)
         except ValueError as exc:
             messagebox.showwarning("Error", str(exc))
@@ -596,6 +620,7 @@ class MonopolyPlusGUI:
 
     def _apply_turn_effects(self, company: Company) -> None:
         cash_flow = company.cash_flow_per_year()
+        self._save_state()
         company.adjust_balance(cash_flow)
         self._refresh_company_table()
         self._update_company_summary()
