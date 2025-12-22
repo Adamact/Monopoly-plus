@@ -5,6 +5,7 @@ Financial metrics are derived automatically from assets and transactions.
 """
 from __future__ import annotations
 
+import copy
 import random
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -24,10 +25,12 @@ class MonopolyPlusGUI:
         self.year_counter: int = 0
         self.active_company: Company | None = None
         self.is_rolling: bool = False
+        self.undo_stack: list[GameState] = []
 
         self._build_layout()
         self._refresh_company_table()
         self._update_turn_display()
+        self.root.bind("<Control-z>", lambda event: self._handle_undo())
 
     # --- Layout ---
     def _build_layout(self) -> None:
@@ -62,6 +65,8 @@ class MonopolyPlusGUI:
         tk.Button(add_frame, text="Add company", command=self._handle_create_company).grid(
             row=0, column=2, rowspan=2, padx=10
         )
+        self._bind_enter(self.new_company_name, self._handle_create_company)
+        self._bind_enter(self.player_balance, self._handle_create_company)
 
         columns = ("Top owner", "Valuation", "Main sector", "Cash flow/year", "Debt")
         self.company_tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
@@ -87,6 +92,9 @@ class MonopolyPlusGUI:
         tk.Button(asset_frame, text="Add asset", command=self._handle_add_asset).grid(
             row=0, column=2, rowspan=4, padx=10
         )
+        self._bind_enter(self.asset_name, self._handle_add_asset)
+        self._bind_enter(self.asset_value, self._handle_add_asset)
+        self._bind_enter(self.asset_cashflow, self._handle_add_asset)
 
         self.company_summary = tk.Text(frame, height=12, wrap=tk.WORD)
         self.company_summary.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -99,6 +107,7 @@ class MonopolyPlusGUI:
         self.balance_change.insert(0, "0")
         self.balance_change.grid(row=0, column=1, padx=5)
         tk.Button(balance_frame, text="Apply", command=self._handle_balance_change).grid(row=0, column=2, padx=5)
+        self._bind_enter(self.balance_change, self._handle_balance_change)
 
     def _build_trade_panel(self, parent: tk.Widget) -> None:
         frame = tk.LabelFrame(parent, text="Transactions", padx=10, pady=10, bg="#ffffff")
@@ -124,12 +133,13 @@ class MonopolyPlusGUI:
         self.share_entry = tk.Entry(frame)
         self.share_entry.insert(0, "10")
         self.share_entry.grid(row=3, column=1, padx=5)
+        self.share_entry.bind("<KeyRelease>", lambda _event: self._update_share_price())
+        self._bind_enter(self.share_entry, self._handle_share_purchase)
 
         self.price_label = tk.Label(frame, text="Price: -", bg="#ffffff", font=("Arial", 11, "bold"))
         self.price_label.grid(row=4, column=0, columnspan=2, pady=5)
 
-        tk.Button(frame, text="Calculate price", command=self._handle_calculate_price).grid(row=5, column=0, pady=5)
-        tk.Button(frame, text="Complete share deal", command=self._handle_share_purchase).grid(row=5, column=1, pady=5)
+        tk.Button(frame, text="Complete share deal", command=self._handle_share_purchase).grid(row=5, column=0, columnspan=2, pady=5)
 
         help_text = (
             "Valuation uses cash flow, substance, debt and sector multipliers.\n"
@@ -154,6 +164,7 @@ class MonopolyPlusGUI:
         tk.Button(money_frame, text="Transfer", command=self._handle_money_transfer).grid(
             row=0, column=2, rowspan=3, padx=10
         )
+        self._bind_enter(self.transfer_amount, self._handle_money_transfer)
 
         asset_trade = tk.LabelFrame(frame, text="Asset trade", bg="#ffffff")
         asset_trade.grid(row=8, column=0, columnspan=2, sticky="ew", pady=8)
@@ -177,6 +188,7 @@ class MonopolyPlusGUI:
         self.asset_price_entry.grid(row=3, column=1, padx=5)
 
         tk.Button(asset_trade, text="Complete asset deal", command=self._handle_asset_sale).grid(row=0, column=2, rowspan=4, padx=10)
+        self._bind_enter(self.asset_price_entry, self._handle_asset_sale)
 
         rent_frame = tk.LabelFrame(frame, text="Pay rent", bg="#ffffff")
         rent_frame.grid(row=9, column=0, columnspan=2, sticky="ew", pady=8)
@@ -195,6 +207,7 @@ class MonopolyPlusGUI:
         self.rent_amount_entry.insert(0, "0")
         self.rent_amount_entry.grid(row=3, column=1, padx=5)
         tk.Button(rent_frame, text="Pay rent", command=self._handle_pay_rent).grid(row=0, column=2, rowspan=4, padx=10)
+        self._bind_enter(self.rent_amount_entry, self._handle_pay_rent)
 
     def _build_dice_panel(self, parent: tk.Widget) -> None:
         frame = tk.LabelFrame(parent, text="Dice & Years", padx=10, pady=10, bg="#ffffff")
@@ -265,6 +278,9 @@ class MonopolyPlusGUI:
         self.company_tree.selection_set(company.name)
         self._update_trade_options()
         self._update_company_summary()
+        self._update_share_price()
+        self._update_share_price()
+        self._update_share_price()
 
     def _refresh_company_table(self) -> None:
         for item in self.company_tree.get_children():
@@ -299,6 +315,7 @@ class MonopolyPlusGUI:
         self.trade_company_var.set(company_name)
         self._update_trade_options()
         self._update_company_summary()
+        self._update_share_price()
 
     def _handle_add_asset(self) -> None:
         if not self.selected_company:
@@ -318,6 +335,7 @@ class MonopolyPlusGUI:
         self.selected_company.add_asset(name=name, value=value, sector=sector, cash_flow_per_year=cashflow)
         self._update_company_summary()
         self._refresh_company_table()
+        self._update_share_price()
 
     def _update_company_summary(self) -> None:
         if not self.selected_company:
@@ -342,6 +360,7 @@ class MonopolyPlusGUI:
         self.rent_payer_select["values"] = actor_names
         self._populate_assets_for_seller()
         self._update_rent_assets()
+        self._update_share_price()
 
     def _dominant_sector(self, company: Company) -> str:
         if not company.assets:
@@ -409,6 +428,7 @@ class MonopolyPlusGUI:
         self._refresh_company_table()
         self._update_company_summary()
         self._update_trade_options()
+        self._update_share_price()
 
     def _handle_money_transfer(self) -> None:
         from_name = self.transfer_from.get()
@@ -604,6 +624,18 @@ class MonopolyPlusGUI:
             messagebox.showwarning("Error", "Share must be between 0 and 100")
             return None
         return share
+
+    def _update_share_price(self) -> None:
+        company = self._get_trade_company()
+        if not company:
+            self.price_label.config(text="Price: -")
+            return
+        share = self._get_trade_percentage()
+        if share is None:
+            self.price_label.config(text="Price: -")
+            return
+        price = company.valuation() * (share / 100)
+        self.price_label.config(text=f"Price: {price:.0f} kr")
 
     def run(self) -> None:
         self.root.mainloop()
