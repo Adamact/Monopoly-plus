@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from gui import MonopolyPlusGUI, BOARD_PROPERTIES; print\\(f''Board properties loaded: {len\\(BOARD_PROPERTIES\\)}''\\); print\\(''First 5:'', [p[0] for p in BOARD_PROPERTIES[:5]]\\); print\\(''Last 3:'', [p[0] for p in BOARD_PROPERTIES[-3:]]\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python:*)"
+    ]
+  }
+}

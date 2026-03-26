@@ -25,9 +25,9 @@ streets = {
                 3 : 3600,
                 4 : 6400,
                 5 : 9000
-                }
-            },
+                },
             "Intecknas" : 600
+            }
     },
     "Ljus-Blå" : {
         "Folkungagatan" : {
@@ -379,7 +379,8 @@ streets = {
             "Hyra" : {
                 1 : lambda x : x * 80,
                 2 : lambda x : x * 200
-            }
+            },
+            "Intecknas" : 1500
         }
     }
 }

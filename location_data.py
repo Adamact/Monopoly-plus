@@ -1,9 +1,9 @@
 location = {
-    0 : {"Start" : 4000},
+    0 : {"Start" : "Inkomst skatt"},
     1 : {"Brun" : "Västerlånggatan"},
     2 : {"Allmänning" : "Allmänning"},
     3 : {"Brun" : "Hornsgatan"},
-    4 : {"Skatt" : 4000},
+    4 : {"Skatt" : "Skatt"},
     5 : {"Station" : "Södra Station"},
     6 : {"Ljus-Blå" : "Folkungagatan"},
     7 : {"Chans" : "Chans"},
@@ -37,6 +37,6 @@ location = {
     35 : {"Station" : "Norra Station"},
     36 : {"Chans" : "Chans"},
     37 : {"Blå" : "Centrum"},
-    38 : {"Skatt" : 2000},
+    38 : {"Skatt" : "Förmögenhetsskatt"},
     39 : {"Blå" : "Norrmalmstorg"}
 }

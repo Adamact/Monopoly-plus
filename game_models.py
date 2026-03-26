@@ -173,7 +173,7 @@ class GameState:
         self.order: List[str] = []
         self.current_index: int = 0
 
-    def add_actor(self, name: str, balance: float | None = None, sector: str = "Property", owner_name: str | None = None) -> Actor:
+    def add_actor(self, name: str, balance: float | None = None, owner_name: str | None = None) -> Actor:
         if name in self.actors:
             raise ValueError("Actor already exists")
         actor = Actor(name, balance, owner_name)
