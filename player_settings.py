@@ -1,14 +1,16 @@
 settings = {
-    "quick_loan" : {
-        "min_loan" : 100,
-        "max_loan" : 1000,
-        "interest" : 0.3
+    "player": {
+        "start_balance": 30000,
+        "max_shares": 4,
+        "dividend_per_share": 0.15,  # 15% of rent per share held
     },
-    "market" : {
-     "dividend" : 0.02   
+    "bank_loan": {
+        "interest_rate": 0.10,  # 10% per lap around the board
+        "min_loan": 500,
+        "max_loan": 10000,
     },
-    "player" : {
-        "start_balance" : 1000 
-    }
-
+    "distress": {
+        "rent_penalty": 0.50,  # halves rent income
+        "duration_rounds": 2,  # 2 rounds of distressed status
+    },
 }
