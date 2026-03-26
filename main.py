@@ -1,31 +1,37 @@
 import os
+import config
+import player_settings as settings
 
 clear = lambda: os.system('cls')
 
 class MonopolyApp():
-    """Overseeing class of the programm."""
+    """Overseeing class of the programm.
+
+    Handles UI elements and all other classes."""
 
     def __init__(self):
+        """Initiates the app and UI elements."""
         self.Monop = Monopoly()
 
     def main_menu(self):
+        """Contains main menu to one method."""
         clear()
         print("-- Welcome to Monopoly add-on -- ")
         print("(1) Start new game")
         print("(2) Load game")
         inp = input("Input: ")
-        
+
         return inp
 
     def new_game(self):
         self.create_players()
+        self.start_game()
         pass
 
     def load_game(self):
         pass
 
     def create_players(self):
-        print("")
         clear()
         inp = ""
         while True:
@@ -37,25 +43,54 @@ class MonopolyApp():
                 if self.Monop.create_player(name):
                     print(f"Succesfully added {name} as a player.")
                 else:
-                    print(f"Unable to create.")
+                    print(f"Unable to create player.")
+
+    def start_game(self):
+        clear()
+        game_mode = self.query_type()
+
+    def query_type(self):
+        while True:
+            print("Choose game type.")
+            print("(1) Addon - Additional tool to your physical boardgame.")
+            print("(2) Complete game - Everything is controlled by the program.")
+            inp = input("Input: ")
+
+            try:
+                int(inp)
+                return inp
+            except ValueError:
+                print("Invalid input.")
 
 
 
 class Monopoly():
     def __init__(self):
         self.players = []
+        self.names = []
 
-    def create_player(self, name="Test"):
-        self.players.append(Player(name))
-        return True
+    def create_player(self, name):
+        if name in self.names:
+            return False
+        else:
+            self.players.append(Player(name))
+            self.names.append(name)
+            return True
 
 
 class Player():
-    
+
     def __init__(self, name):
         self.name = name
-        self.balance = 1500
+        self.balance = settings.settings["player"]["start_balance"]
         self.position = 0
+        self.streets = []
+
+    def get_name(self):
+        return self.name
+
+    def get_balance(self):
+        return self.balance
 
 if __name__ == "__main__":
     app = MonopolyApp()
